@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 
 WIN_RESPONSE = [
     "X has won the match against Y.",

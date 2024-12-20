@@ -8,11 +8,11 @@ async def ttt_game_embed(player1, player2):
     countdown = unix_future_time.strftime('%s')
 
     embed = discord.Embed(title='Tic Tac Toe',
-                          description=f'{player1} (❌) challenged {player2} (⭕) in tic tac toe',
-                          colour=discord.Colour.from_rgb(51, 55, 59))
+                          description=f'- {player1} ❌ \n- {player2} ⭕',
+                          colour=discord.Colour.from_rgb(79, 80, 87))
     embed.set_footer(text="By Arena Breakout")
 
-    embed.add_field(name=f"Move within <t:{countdown}:R>", value='\u200b', inline=False)
+    embed.add_field(name=f"Mark <t:{countdown}:R>", value='\u200b', inline=False)
     return embed
 
 

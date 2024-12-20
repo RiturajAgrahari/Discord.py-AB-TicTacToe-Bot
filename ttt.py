@@ -1,34 +1,42 @@
 import discord
 import random
-from datetime import datetime, timedelta
 from discord.ui import Button, View
 
 from constant import WIN_RESPONSE
 from ui import ttt_game_embed, game_embed
 from models import TicTacToeGame, Profile
 
-players_discord_id = []                                         # <:@656565543544534544:>
-List = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# players_discord_id = []                                         # <:@656565543544534544:>
+# List = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+matches = {}
 
 
-async def clear_data():
-    players_discord_id.clear()
-    List.clear()
-    for i in range(0, 10):
-        List.append(i)
+# async def clear_data():
+#     players_discord_id.clear()
+#     List.clear()
+#     for i in range(0, 10):
+#         List.append(i)
 
 
-async def tictactoe(main_interaction, member):
-    await clear_data()
+async def tictactoe(main_interaction, member, uid):
+    # await clear_data()
+    matches[uid] = {
+        "players_discord_id": [],
+        "List": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    }
 
     # embed = await tic_tac_toe_embed(interaction)
-    embed = await ttt_game_embed(main_interaction.user.mention, member.mention)
-    players_discord_id.append(main_interaction.user.mention)
-    players_discord_id.append(member.mention)
+    embed = await ttt_game_embed(main_interaction.user.name, member.name)
+    # players_discord_id.append(main_interaction.user.mention)
+    # players_discord_id.append(member.mention)
+    matches[uid]["players_discord_id"].append(main_interaction.user.mention)
+    matches[uid]["players_discord_id"].append(member.mention)
 
     class YourView(View):
         # button properties
-        button_label = '\u200b'
+        # button_label = '\u200b'
+        button_label = '-'
         button_color = discord.ButtonStyle.gray
 
         def __init__(self):
@@ -41,120 +49,125 @@ async def tictactoe(main_interaction, member):
         async def a11(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 0
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=0)
         async def a12(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 1
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=0)
         async def a13(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 2
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=1)
         async def a21(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 3
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=1)
         async def a22(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 4
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=1)
         async def a23(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 5
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=2)
         async def a31(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 6
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=2)
         async def a32(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 7
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         @discord.ui.button(label=button_label, style=button_color, row=2)
         async def a33(self, interaction: discord.Interaction, button: discord.ui.Button):
             self.timeout = 60
             value = 8
-            await move(self, interaction, button, value, embed)
+            await move(self, interaction, button, value, embed, uid)
 
         async def on_timeout(self) -> None:
-            for i, child in enumerate(self.children):
-                if type(child) == discord.ui.Button:
-                    child.disabled = True
+            if not self.match_complete_status:
+                for i, child in enumerate(self.children):
+                    if type(child) == discord.ui.Button:
+                        child.disabled = True
 
-            random_win_message = random.choice(WIN_RESPONSE)
-            if self.click_count % 2 == 0:
-                idle = players_discord_id[0]
-                winner = players_discord_id[1]
+                if self.click_count % 2 == 0:
+                    idle = matches[uid]["players_discord_id"][0]
+                    winner = matches[uid]["players_discord_id"][1]
 
-            else:
-                idle = players_discord_id[1]
-                winner = players_discord_id[0]
+                else:
+                    idle = matches[uid]["players_discord_id"][1]
+                    winner = matches[uid]["players_discord_id"][0]
 
-            new_embed = await game_embed(
-                embed=embed,
-                msg=f"{idle} you didn't responded for a long time\n{winner} you won!",
-                time=False,
-                result=True
-            )
-            # Editing the result response
-            await main_interaction.edit_original_response(embed=new_embed, view=self)
+                new_embed = await game_embed(
+                    embed=embed,
+                    msg=f"{idle} you didn't respond for a long time\n{winner} you won!",
+                    time=False,
+                    result=True
+                )
+                # Editing the result response
+                await main_interaction.edit_original_response(embed=new_embed, view=self)
 
     view = YourView()
-    view.response = await main_interaction.response.send_message(embed=embed, view=view)
+    view.response = await main_interaction.response.send_message(
+        content=f'> {main_interaction.user.mention} challenged {member.mention} in tic tac toe',
+        embed=embed,
+        view=view
+    )
 
 
-async def move(self, interaction, button, given, embed):
+async def move(self, interaction, button, given, embed, uid):
     try:
         if self.click_count == 8:  # TIE OR WIN
             button.label = '❌'
             button.disabled = True
             self.click_count += 1
-            is_someone_win = await results(interaction, given, "cross", self, embed)
-
+            is_someone_win = await results(interaction, given, "cross", self, embed, uid)
+            self.match_complete_status = True
             # For tie
             if not is_someone_win:
                 embed = await game_embed(embed, msg="It is a Tie", result=True)
                 # Editing the result response
                 await interaction.edit_original_response(embed=embed, view=self)
 
-            for discord_id in players_discord_id:
+            # for discord_id in players_discord_id:
+            for discord_id in matches[uid]["players_discord_id"]:
                 ttt_stat = await get_ttt_stat(discord_id)
                 if ttt_stat:
                     ttt_stat.tie = ttt_stat.tie + 1
                     await ttt_stat.save()
 
         # When first player moves
-        elif self.click_count % 2 == 0 and str(interaction.user.mention) == players_discord_id[0]:
+        elif self.click_count % 2 == 0 and str(interaction.user.mention) == matches[uid]["players_discord_id"][0]:
             button.label = '❌'
             button.disabled = True
-            await results(interaction, given, "cross", self, embed)
+            await results(interaction, given, "cross", self, embed, uid)
             self.click_count += 1
 
         # When second player moves
-        elif self.click_count % 2 != 0 and str(interaction.user.mention) == players_discord_id[1]:
+        elif self.click_count % 2 != 0 and str(interaction.user.mention) == matches[uid]["players_discord_id"][1]:
             button.label = '⭕'
             button.disabled = True
-            await results(interaction, given, "circle", self, embed)
+            await results(interaction, given, "circle", self, embed, uid)
             self.click_count += 1
 
         # When someone else moves, or player moves in opponents turn
         else:
-            if interaction.user.mention in players_discord_id:
+            if interaction.user.mention in matches[uid]["players_discord_id"]:
                 await interaction.response.send_message(f'> This is your opponent\'s turn!', ephemeral=True)
             else:
                 await interaction.response.send_message(f'> You can\'t play someone else\'s match!', ephemeral=True)
@@ -164,48 +177,48 @@ async def move(self, interaction, button, given, embed):
         await interaction.response.send_message('Match is over!, use </play:1123130558768238665> to play!', ephemeral=True)
 
 
-async def results(interaction, value, player_move, self, embed):
-    List.insert(value, player_move)
-    List.remove(value)
-    if List[0] == List[3] == List[6]:
+async def results(interaction, value, player_move, self, embed, uid):
+    matches[uid]["List"].insert(value, player_move)
+    matches[uid]["List"].remove(value)
+    if matches[uid]["List"][0] == matches[uid]["List"][3] == matches[uid]["List"][6]:
         position = 0
         pattern = [0, 3, 6]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[1] == List[4] == List[7]:
+    elif matches[uid]["List"][1] == matches[uid]["List"][4] == matches[uid]["List"][7]:
         position = 1
         pattern = [1, 4, 7]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[2] == List[5] == List[8]:
+    elif matches[uid]["List"][2] == matches[uid]["List"][5] == matches[uid]["List"][8]:
         position = 2
         pattern = [2, 5, 8]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[0] == List[1] == List[2]:
+    elif matches[uid]["List"][0] == matches[uid]["List"][1] == matches[uid]["List"][2]:
         position = 0
         pattern = [0, 1, 2]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[3] == List[4] == List[5]:
+    elif matches[uid]["List"][3] == matches[uid]["List"][4] == matches[uid]["List"][5]:
         position = 3
         pattern = [3, 4, 5]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[6] == List[7] == List[8]:
+    elif matches[uid]["List"][6] == matches[uid]["List"][7] == matches[uid]["List"][8]:
         position = 6
         pattern = [6, 7, 8]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[0] == List[4] == List[8]:
+    elif matches[uid]["List"][0] == matches[uid]["List"][4] == matches[uid]["List"][8]:
         position = 0
         pattern = [0, 4, 8]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
-    elif List[2] == List[4] == List[6]:
+    elif matches[uid]["List"][2] == matches[uid]["List"][4] == matches[uid]["List"][6]:
         position = 2
         pattern = [2, 4, 6]
-        await winner(interaction, position, self, embed, pattern)
+        await winner(interaction, position, self, embed, pattern, uid)
         return True
     else:
         embed = await game_embed(embed, time=True)
@@ -213,7 +226,8 @@ async def results(interaction, value, player_move, self, embed):
         return False
 
 
-async def winner(interaction, position, self, embed, pattern):
+async def winner(interaction, position, self, embed, pattern, uid):
+    self.match_complete_status = True
     # Disabling all buttons as match is ended
     for i, child in enumerate(self.children):
         if type(child) == discord.ui.Button:
@@ -227,29 +241,31 @@ async def winner(interaction, position, self, embed, pattern):
 
     # Creating a result response message
     random_win_message = random.choice(WIN_RESPONSE)
-    if List[position] == "cross":
-        win_message = str(random_win_message).replace("X", players_discord_id[0]).replace("Y", players_discord_id[1])
+    if matches[uid]["List"][position] == "cross":
+        win_message = str(random_win_message).replace("X", matches[uid]["players_discord_id"][0]).replace("Y", matches[uid]["players_discord_id"][1])
     else:
-        win_message = str(random_win_message).replace("X", players_discord_id[1]).replace("Y", players_discord_id[0])
+        win_message = str(random_win_message).replace("X", matches[uid]["players_discord_id"][1]).replace("Y", matches[uid]["players_discord_id"][0])
 
     embed = await game_embed(embed, msg=win_message, result=True)
     # Editing the result response
     await interaction.edit_original_response(embed=embed, view=self)
 
     # Storing stats in DB
-    for discord_id in players_discord_id:
+    for discord_id in matches[uid]["players_discord_id"]:
         ttt_stat = await get_ttt_stat(discord_id)
-        if List[position] == "cross" and discord_id == players_discord_id[0]:
+        if matches[uid]["List"][position] == "cross" and discord_id == matches[uid]["players_discord_id"][0]:
             ttt_stat.win = ttt_stat.win + 1
             await ttt_stat.save()
-        elif List[position] != "cross" and discord_id == players_discord_id[1]:
+        elif matches[uid]["List"][position] != "cross" and discord_id == matches[uid]["players_discord_id"][1]:
             ttt_stat.win = ttt_stat.win + 1
             await ttt_stat.save()
         else:
             ttt_stat.win = ttt_stat.loss + 1
             await ttt_stat.save()
     else:
-        await clear_data()
+        # await clear_data()
+        # matches[uid]
+        matches.pop(uid)
 
     # if List[position] == "cross":
     #     for user_discord_id in players_discord_id:

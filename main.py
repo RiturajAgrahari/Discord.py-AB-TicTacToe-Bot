@@ -3,6 +3,7 @@ import sys
 import datetime
 from dotenv import load_dotenv
 from typing import Literal
+import uuid
 
 import discord
 from discord.ext import tasks
@@ -110,6 +111,7 @@ async def on_message(message):
 
 @client.tree.command(name="play", description="Choose a game to play!")
 async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], member: discord.Member=None):
+    uid = uuid.uuid4()
     if member:
         # Creating profiles in DB
         users = [
@@ -125,7 +127,7 @@ async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], 
 
         # Play games
         if games == 'tic tac toe':
-            await tictactoe(interaction, member)
+            await tictactoe(interaction, member, str(uid))
 
         else:
             await send_error(__file__, '/play', 'user trying to play unknown game!', server="Arena Breakout")
