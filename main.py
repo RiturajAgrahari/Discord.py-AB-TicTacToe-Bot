@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.errors import Forbidden
 
 from ttt import tictactoe
+from models import Profile
 from db import db_init
 
 # LOADING ENV
@@ -25,10 +26,10 @@ guilds = [MY_GUILD, TEST_GUILD, MAIN_GUILD]
 permitted_users = ['<@568179896459722753>']
 
 responses = [
-    "_magic 🪄... try the command again </hero:1302652188148891690>_",
-    "_ghost came into the way 👻... try the command again </hero:1302652188148891690>_",
-    "_ uf! high traffic  🚦... try the command again </hero:1302652188148891690>_",
-    "_ is this your parcel?  📦... try the command again </hero:1302652188148891690>_"
+    "_magic 🪄... try the command again </play:1302652188148891690>_",
+    "_ghost came into the way 👻... try the command again </play:1302652188148891690>_",
+    "_ uf! high traffic  🚦... try the command again </play:1302652188148891690>_",
+    "_ is this your parcel?  📦... try the command again </play:1302652188148891690>_"
 ]
 
 
@@ -97,7 +98,7 @@ async def on_message(message):
         user_message = str(message.content)
         channel = str(message.channel.name)
         guild_name = message.guild.name
-        # print(f'[channel: {channel}] --> {username}: {user_message}')
+        print(f'[channel: {channel}] --> {username}: {user_message}')
 
         if message.author.mention in permitted_users:
             if user_message == "tommy!":
@@ -108,12 +109,29 @@ async def on_message(message):
 
 
 @client.tree.command(name="play", description="Choose a game to play!")
-async def play(interaction: discord.Interaction, games: Literal['tic tac toe']):
-    if games == 'tic tac toe':
-        await tictactoe(interaction)
+async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], member: discord.Member=None):
+    if member:
+        # Creating profiles in DB
+        users = [
+            (str(interaction.user.mention), str(interaction.user.name)),
+            (str(member.mention), str(member.name))
+        ]
+        for user in users:
+            user_exist = Profile.get_or_none(discord_id=user[0])
+            if not user_exist:
+                # Creating user
+                new_user = Profile(discord_id=user[0], discord_name=user[1])
+                await new_user.save()
+
+        # Play games
+        if games == 'tic tac toe':
+            await tictactoe(interaction, member)
+
+        else:
+            await send_error(__file__, '/play', 'user trying to play unknown game!', server="Arena Breakout")
+            print(games)
     else:
-        await send_error(__file__, '/play', 'user trying to play unknown game!', server="Arena Breakout")
-        print(games)
+        await interaction.response.send_message("> Please select an opponent!", ephemeral=True)
 
 
 # @client.tree.command(name="statistics", description="Choose a game to check the statistics of a specific player!")

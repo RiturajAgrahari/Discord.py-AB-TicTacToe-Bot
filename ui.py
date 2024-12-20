@@ -1,29 +1,38 @@
 import discord
-
-
-async def tic_tac_toe_embed(interaction):
-    embed = discord.Embed(
-        title="❌Tic_Tac_Toe❌",
-        description=f"A game in which two players seek in alternate turns to complete a row, a column, or a diagonal"
-                    f" with either three O's or three X's drawn in the spaces of a grid of nine squares.",
-        color=discord.Color.green(),
-    )
-
-    embed.add_field(name="⭕Tap JOIN to get into the game⭕",
-                    value="2 Players required",
-                    inline=False)
-
-    embed.set_footer(text=f"Requested By {interaction.user}")
-    return embed
+from datetime import datetime, timedelta
 
 
 async def ttt_game_embed(player1, player2):
-    embed = discord.Embed(title='Tic Tac Toe',
-                          description='You have to complete a row,\n column, or a diagonal with your\n mark to win',
-                          colour=discord.Colour.red())
-    embed.add_field(name='Players Joined',
-                    value=f'{player1} is ❌\n'
-                          f'{player2} is ⭕',
-                    inline=True)
+    unix_time_now = datetime.now()
+    unix_future_time = unix_time_now + timedelta(seconds=60)
+    countdown = unix_future_time.strftime('%s')
 
+    embed = discord.Embed(title='Tic Tac Toe',
+                          description=f'{player1} (❌) challenged {player2} (⭕) in tic tac toe',
+                          colour=discord.Colour.from_rgb(51, 55, 59))
+    embed.set_footer(text="By Arena Breakout")
+
+    embed.add_field(name=f"Move within <t:{countdown}:R>", value='\u200b', inline=False)
+    return embed
+
+
+async def game_embed(embed, msg=None, time=False, result=False):
+    embed.remove_field(0)
+    # If time = True, it will reset time to 60 seconds
+    if time:
+        unix_time_now = datetime.now()
+        unix_future_time = unix_time_now + timedelta(seconds=60)
+        countdown = unix_future_time.strftime('%s')
+        embed.add_field(name=f"Move within <t:{countdown}:R>", value='\u200b', inline=False)
+
+    if result:
+        if "tie" in msg:
+            embed.color = discord.Color.red()
+        else:
+            embed.color = discord.Color.gold()
+        embed.add_field(
+            name="Results",
+            value=msg,
+            inline=False
+        )
     return embed
