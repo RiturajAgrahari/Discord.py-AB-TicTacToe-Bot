@@ -112,7 +112,7 @@ async def on_message(message):
 @client.tree.command(name="play", description="Choose a game to play!")
 async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], member: discord.Member=None):
     uid = uuid.uuid4()
-    if member:
+    if member and interaction.user.mention != member.mention:
         # Creating profiles in DB
         users = [
             (str(interaction.user.mention), str(interaction.user.name)),
@@ -133,7 +133,11 @@ async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], 
             await send_error(__file__, '/play', 'user trying to play unknown game!', server="Arena Breakout")
             print(games)
     else:
-        await interaction.response.send_message("> Please select an opponent!", ephemeral=True)
+        if not member:
+            await interaction.response.send_message("> Please select an opponent!", ephemeral=True)
+        else:
+            await interaction.response.send_message("> You can't play with yourself!", ephemeral=True)
+
 
 
 # @client.tree.command(name="statistics", description="Choose a game to check the statistics of a specific player!")
