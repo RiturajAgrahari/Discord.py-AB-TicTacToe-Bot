@@ -1,40 +1,121 @@
 import discord
 import random
+
+from discord import Interaction
 from discord.ui import Button, View
 
 from constant import WIN_RESPONSE
-from ui import ttt_game_embed, game_embed
+from ui import ttt_game_embed, game_embed, get_countdown
 from models import TicTacToeGame, Profile
-
-# players_discord_id = []                                         # <:@656565543544534544:>
-# List = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 matches = {}
 
 
-# async def clear_data():
-#     players_discord_id.clear()
-#     List.clear()
-#     for i in range(0, 10):
-#         List.append(i)
-
-
-async def tictactoe(main_interaction, member, uid):
-    # await clear_data()
+# Asking for challenge acceptance and refusal to the opponent
+async def challenge(main_interaction, member, uid):
     matches[uid] = {
-        "players_discord_id": [],
+        "players_discord_id": [main_interaction.user.mention, member.mention],
         "List": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     }
 
-    # embed = await tic_tac_toe_embed(interaction)
-    embed = await ttt_game_embed(main_interaction.user.name, member.name)
-    # players_discord_id.append(main_interaction.user.mention)
-    # players_discord_id.append(member.mention)
-    matches[uid]["players_discord_id"].append(main_interaction.user.mention)
-    matches[uid]["players_discord_id"].append(member.mention)
+    class MyView(View):
+        def __init__(self):
+            super().__init__(timeout=120)
+            self.response = None
+            self.click_count = 0
+            self.match_complete_status = False
+
+        # Accepting challenge
+        @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, row=0)
+        async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await tictactoe(interaction, main_interaction, uid)
+
+        # Refusing challenge
+        @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, row=0)
+        async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+            # Disabling button and changing Accept button style to gray
+            for i, child in enumerate(self.children):
+                if type(child) == discord.ui.Button:
+                    child.disabled = True
+                    if i == 0:
+                        child.style = discord.ButtonStyle.gray
+
+            # Removing match
+            matches.pop(uid)
+            print(matches)
+
+            # Editing response
+            await main_interaction.edit_original_response(
+                content=f"{interaction.user.mention} has declined your tic tac toe challenge! {main_interaction.user.mention}",
+                view=self
+            )
+
+            # Sending interaction response as it is necessary to do so
+            await interaction.response.send_message("> Challenge Declined!", ephemeral=True)
+
+        # Interaction check
+        async def interaction_check(self, interaction: Interaction, /) -> bool:
+            # Check whether the challenged player is responding or not
+            if interaction.user.mention == member.mention:
+                return True
+            await interaction.response.send_message(
+                f"> Only the challenged player can accept or decline the invitation",
+                ephemeral=True
+            )
+
+        # When challenge is expired
+        async def on_timeout(self) -> None:
+            # Disabling button
+            for child in self.children:
+                if type(child) == discord.ui.Button:
+                    child.disabled = True
+
+            # Removing match
+            matches.pop(uid)
+
+            # Editing response
+            await main_interaction.edit_original_response(
+                content=f'> {main_interaction.user.mention} challenged you {member.mention} in tic tac toe\n'
+                        f'> The challenge is expired!',
+                view=self
+            )
+
+    # Sending challenge invitation
+    countdown = await get_countdown(seconds=120)
+
+    for match in matches.keys():
+        if match == uid:
+            continue
+        else:
+            if main_interaction.user.mention in matches[match]["players_discord_id"]:
+                matches.pop(uid)
+                await main_interaction.response.send_message(
+                    content=f"> You are already in a game. Please finish it before starting new",
+                    ephemeral=True
+                )
+                break
+            elif member.mention in matches[match]["players_discord_id"]:
+                matches.pop(uid)
+                await main_interaction.response.send_message(
+                    content=f"> The opponent is already in a match with someone, Kindly wait for his/her match to end",
+                    ephemeral=True
+                )
+                break
+
+    else:
+        view = MyView()
+        view.response = await main_interaction.response.send_message(
+            content=f'> {main_interaction.user.mention} challenged you {member.mention} in tic tac toe, would you like to'
+                    f' accept the challenge?\n> The invitation will expire {countdown}',
+            view=view
+        )
+
+
+async def tictactoe(main_interaction, member, uid):
+    embed = await ttt_game_embed(member.user.name, main_interaction.user.name)
 
     class YourView(View):
-        # button properties
+        # Button properties
         # button_label = '\u200b'
         button_label = '-'
         button_color = discord.ButtonStyle.gray
@@ -122,9 +203,12 @@ async def tictactoe(main_interaction, member, uid):
                 # Editing the result response
                 await main_interaction.edit_original_response(embed=new_embed, view=self)
 
+                # Removing match
+                matches.pop(uid)
+
     view = YourView()
-    view.response = await main_interaction.response.send_message(
-        content=f'> {main_interaction.user.mention} challenged {member.mention} in tic tac toe',
+    view.response = await main_interaction.response.edit_message(
+        content=f'> {main_interaction.user.mention} accepted {matches[uid]["players_discord_id"][0]} challenge!',
         embed=embed,
         view=view
     )
@@ -150,6 +234,9 @@ async def move(self, interaction, button, given, embed, uid):
                 if ttt_stat:
                     ttt_stat.tie = ttt_stat.tie + 1
                     await ttt_stat.save()
+
+            # Removing match
+            matches.pop(uid)
 
         # When first player moves
         elif self.click_count % 2 == 0 and str(interaction.user.mention) == matches[uid]["players_discord_id"][0]:
@@ -228,6 +315,7 @@ async def results(interaction, value, player_move, self, embed, uid):
 
 async def winner(interaction, position, self, embed, pattern, uid):
     self.match_complete_status = True
+
     # Disabling all buttons as match is ended
     for i, child in enumerate(self.children):
         if type(child) == discord.ui.Button:
@@ -263,50 +351,7 @@ async def winner(interaction, position, self, embed, pattern, uid):
             ttt_stat.win = ttt_stat.loss + 1
             await ttt_stat.save()
     else:
-        # await clear_data()
-        # matches[uid]
         matches.pop(uid)
-
-    # if List[position] == "cross":
-    #     for user_discord_id in players_discord_id:
-    #         user = await Profile.get_or_none(discord_id=user_discord_id)
-    #         if user:
-    #             tictactoestat = await TicTacToeGame.get_or_none(uid=user)
-    #             if tictactoestat:
-    #                 if players_discord_id[0] == user.discord_id:
-    #                     tictactoestat.win = tictactoestat.win + 1
-    #                 else:
-    #                     tictactoestat.loss = tictactoestat.loss + 1
-    #                 await tictactoestat.save()
-    #             else:
-    #                 if players_discord_id[0] == user.discord_id:
-    #                     new_stat = TicTacToeGame(uid=user, win=1)
-    #                 else:
-    #                     new_stat = TicTacToeGame(uid=user, loss=1)
-    #                 await new_stat.save()
-    #         else:
-    #             print("user doesn't exist? why it gets created just above!")
-    #
-    # else:
-    #     for user_discord_id in players_discord_id:
-    #         user = await Profile.get_or_none(discord_id=user_discord_id)
-    #         if user:
-    #             tictactoestat = await TicTacToeGame.get_or_none(uid=user)
-    #             if tictactoestat:
-    #                 if players_discord_id[1] == user.discord_id:
-    #                     tictactoestat.win = tictactoestat.win + 1
-    #                 else:
-    #                     tictactoestat.loss = tictactoestat.loss + 1
-    #                 await tictactoestat.save()
-    #             else:
-    #                 if players_discord_id[1] == user.discord_id:
-    #                     new_stat = TicTacToeGame(uid=user, win=1)
-    #                 else:
-    #                     new_stat = TicTacToeGame(uid=user, loss=1)
-    #                 await new_stat.save()
-    #         else:
-    #             print("user doesn't exist? why it gets created just above!")
-    #             await clear_data()
 
 
 async def get_ttt_stat(discord_id):
@@ -321,75 +366,3 @@ async def get_ttt_stat(discord_id):
             return tictactoestat
     else:
         print("user doesn't exist? why it gets created just above!")
-
-
-
-#
-# class TicTacToe():
-#     def __init__(self, member: discord.Member):
-#         self.players_discord_id = []
-#         self.list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-#         self.embed = None
-#
-#     async def play(self, main_interaction, member):
-#         self.embed = ttt_game_embed(main_interaction.user.mention, member.mention)
-#         class YourView(View):
-#             # button properties
-#             button_label = '\u200b'
-#             button_color = discord.ButtonStyle.gray
-#
-#             def __init__(self):
-#                 super().__init__(timeout=None)
-#                 self.response = None
-#                 self.click_count = 0
-#                 self.match_complete_status = False
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=0)
-#             async def a11(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 0
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=0)
-#             async def a12(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 1
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=0)
-#             async def a13(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 2
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=1)
-#             async def a21(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 3
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=1)
-#             async def a22(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 4
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=1)
-#             async def a23(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 5
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=2)
-#             async def a31(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 6
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=2)
-#             async def a32(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 7
-#                 await move(self, interaction, button, value, embed)
-#
-#             @discord.ui.button(label=button_label, style=button_color, row=2)
-#             async def a33(self, interaction: discord.Interaction, button: discord.ui.Button):
-#                 value = 8
-#                 await move(self, interaction, button, value, embed)
-#
-#         view = YourView()
-#         view.response = await main_interaction.response.send_message(embed=embed, view=view)
-#
-#

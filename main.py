@@ -10,7 +10,7 @@ from discord.ext import tasks
 from discord import app_commands
 from discord.errors import Forbidden
 
-from ttt import tictactoe
+from ttt import tictactoe, challenge
 from models import Profile
 from db import db_init
 
@@ -127,7 +127,8 @@ async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], 
 
         # Play games
         if games == 'tic tac toe':
-            await tictactoe(interaction, member, str(uid))
+            await challenge(interaction, member, str(uid))
+            # await tictactoe(interaction, member, str(uid))
 
         else:
             await send_error(__file__, '/play', 'user trying to play unknown game!', server="Arena Breakout")
