@@ -22,17 +22,18 @@ async def challenge(main_interaction, member, uid):
         def __init__(self):
             super().__init__(timeout=120)
             self.response = None
-            self.click_count = 0
-            self.match_complete_status = False
+            self.challenge_status = False
 
         # Accepting challenge
         @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, row=0)
         async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+            self.challenge_status = True
             await tictactoe(interaction, main_interaction, uid)
 
         # Refusing challenge
         @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, row=0)
         async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+            self.challenge_status = True
             # Disabling button and changing Accept button style to gray
             for i, child in enumerate(self.children):
                 if type(child) == discord.ui.Button:
@@ -65,20 +66,21 @@ async def challenge(main_interaction, member, uid):
 
         # When challenge is expired
         async def on_timeout(self) -> None:
-            # Disabling button
-            for child in self.children:
-                if type(child) == discord.ui.Button:
-                    child.disabled = True
+            if not self.challenge_status:
+                # Disabling button
+                for child in self.children:
+                    if type(child) == discord.ui.Button:
+                        child.disabled = True
 
-            # Removing match
-            matches.pop(uid)
+                # Removing match
+                matches.pop(uid)
 
-            # Editing response
-            await main_interaction.edit_original_response(
-                content=f'> {main_interaction.user.mention} challenged you {member.mention} in tic tac toe\n'
-                        f'> The challenge is expired!',
-                view=self
-            )
+                # Editing response
+                await main_interaction.edit_original_response(
+                    content=f'> {main_interaction.user.mention} challenged you {member.mention} in tic tac toe\n'
+                            f'> The challenge is expired!',
+                    view=self
+                )
 
     # Sending challenge invitation
     countdown = await get_countdown(seconds=120)
