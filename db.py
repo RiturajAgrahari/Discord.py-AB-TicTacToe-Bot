@@ -1,12 +1,13 @@
 import os
 from tortoise import Tortoise
 from dotenv import load_dotenv
+from logger import debug_logger
 
 load_dotenv()
 
 
 async def db_init():
-    # info_logger.info(f"Initializing tortoise ORM...")
+    debug_logger.debug(f"Initializing ORM...")
     await Tortoise.init(
         config={
             "connections": {
@@ -31,5 +32,5 @@ async def db_init():
     )
 
     await Tortoise.generate_schemas(safe=True)
-    # info_logger.info(f"tortoise ORM is initialized successfully!")
+    debug_logger.debug(f"ORM initialization successful!")
 

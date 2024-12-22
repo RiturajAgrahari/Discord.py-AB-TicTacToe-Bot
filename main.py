@@ -1,16 +1,14 @@
 import os
 import sys
-import datetime
 from dotenv import load_dotenv
 from typing import Literal
 import uuid
 
 import discord
-from discord.ext import tasks
 from discord import app_commands
 from discord.errors import Forbidden
 
-from ttt import tictactoe, challenge
+from ttt import challenge
 from models import Profile
 from db import db_init
 
@@ -50,7 +48,7 @@ class MyClient(discord.Client):
                 self.tree.copy_global_to(guild=main_guild)
                 await self.tree.sync(guild=main_guild)
             except Forbidden:
-                print("DISCORD FORBIDDEN ERROR!")
+                print(f"UNABLE TO CONNECT TO GUILD-ID : {guild}")
 
 
 # Running the client with specific permissions
@@ -64,23 +62,6 @@ async def on_ready():
     print(f'Your Tic Tac Toe bot in successfully started as {client.user} (ID: {client.user.id})')
     print('-----')
     await db_init()
-    await reset_time.start()
-
-
-@tasks.loop(minutes=1)
-async def reset_time():
-    # Get the current UTC time
-    try:
-        current_time_utc = datetime.datetime.utcnow().today()
-    except Exception:
-        current_time_utc = datetime.datetime.now(datetime.datetime.UTC)
-
-    # Check if it's UTC 00:00
-    # print(current_time_utc.hour, current_time_utc.minute)
-    if current_time_utc.hour == 00 and current_time_utc.minute == 00:
-        # bot_usage = await TodayLuck.all().count()  # count total unique usage
-        # usage = BotUsage(usage=int(bot_usage))
-        pass
 
 
 @client.event
@@ -91,7 +72,7 @@ async def on_message(message):
 
     # Checks if the message is recieved in DM
     elif message.channel.type == discord.ChannelType.private:
-        print(f'DM --> [{message.author}] : {message.content}')
+        print(f'Bot DM --> [{message.author}] : {message.content}')
 
     # Message in server channels
     else:
@@ -99,7 +80,7 @@ async def on_message(message):
         user_message = str(message.content)
         channel = str(message.channel.name)
         guild_name = message.guild.name
-        print(f'[channel: {channel}] --> {username}: {user_message}')
+        # print(f'[channel: {channel}] --> {username}: {user_message}')
 
         if message.author.mention in permitted_users:
             if user_message == "tommy!":
@@ -109,8 +90,8 @@ async def on_message(message):
             #     await config_bot(message, luck, client)
 
 
-@client.tree.command(name="play", description="Choose a game to play!")
-async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], member: discord.Member=None):
+@client.tree.command(name="play-games", description="Choose a game to play!")
+async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], member: discord.Member):
     uid = uuid.uuid4()
     if member and interaction.user.mention != member.mention:
         # Creating profiles in DB

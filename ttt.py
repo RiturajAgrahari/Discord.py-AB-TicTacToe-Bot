@@ -27,13 +27,11 @@ async def challenge(main_interaction, member, uid):
         # Accepting challenge
         @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, row=0)
         async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-            self.challenge_status = True
             await tictactoe(interaction, main_interaction, uid)
 
         # Refusing challenge
         @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, row=0)
         async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-            self.challenge_status = True
             # Disabling button and changing Accept button style to gray
             for i, child in enumerate(self.children):
                 if type(child) == discord.ui.Button:
@@ -43,7 +41,6 @@ async def challenge(main_interaction, member, uid):
 
             # Removing match
             matches.pop(uid)
-            print(matches)
 
             # Editing response
             await main_interaction.edit_original_response(
@@ -58,6 +55,7 @@ async def challenge(main_interaction, member, uid):
         async def interaction_check(self, interaction: Interaction, /) -> bool:
             # Check whether the challenged player is responding or not
             if interaction.user.mention == member.mention:
+                self.challenge_status = True
                 return True
             await interaction.response.send_message(
                 f"> Only the challenged player can accept or decline the invitation",
@@ -77,7 +75,8 @@ async def challenge(main_interaction, member, uid):
 
                 # Editing response
                 await main_interaction.edit_original_response(
-                    content=f'> {main_interaction.user.mention} challenged you {member.mention} in tic tac toe\n'
+                    content=f'> {member.mention} didn\'t responded to the challenge invitation by'
+                            f' {main_interaction.user.mention}\n'
                             f'> The challenge is expired!',
                     view=self
                 )
@@ -85,10 +84,13 @@ async def challenge(main_interaction, member, uid):
     # Sending challenge invitation
     countdown = await get_countdown(seconds=120)
 
+    # Check for match reports
     for match in matches.keys():
+        # This is your match.
         if match == uid:
             continue
         else:
+            # [Message] Finish your match before challenging for a new match.
             if main_interaction.user.mention in matches[match]["players_discord_id"]:
                 matches.pop(uid)
                 await main_interaction.response.send_message(
@@ -96,6 +98,8 @@ async def challenge(main_interaction, member, uid):
                     ephemeral=True
                 )
                 break
+
+            # [Message] Other player is already in challenge with someone.
             elif member.mention in matches[match]["players_discord_id"]:
                 matches.pop(uid)
                 await main_interaction.response.send_message(
@@ -104,22 +108,24 @@ async def challenge(main_interaction, member, uid):
                 )
                 break
 
+    # If there is no match with any one of the user then.
     else:
         view = MyView()
         view.response = await main_interaction.response.send_message(
-            content=f'> {main_interaction.user.mention} challenged you {member.mention} in tic tac toe, would you like to'
+            content=f'> {main_interaction.user.mention} challenged {member.mention} in tic tac toe, would you like to'
                     f' accept the challenge?\n> The invitation will expire {countdown}',
             view=view
         )
 
 
 async def tictactoe(main_interaction, member, uid):
+    # Match Board Embed
     embed = await ttt_game_embed(member.user.name, main_interaction.user.name)
 
     class YourView(View):
         # Button properties
-        # button_label = '\u200b'
         button_label = '-'
+        # button_label = '\u200b'
         button_color = discord.ButtonStyle.gray
 
         def __init__(self):
@@ -127,6 +133,7 @@ async def tictactoe(main_interaction, member, uid):
             self.response = None
             self.click_count = 0
             self.match_complete_status = False
+            self.value = None
 
         @discord.ui.button(label=button_label, style=button_color, row=0)
         async def a11(self, interaction: discord.Interaction, button: discord.ui.Button):
