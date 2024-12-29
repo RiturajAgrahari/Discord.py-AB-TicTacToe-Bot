@@ -11,6 +11,7 @@ from discord.errors import Forbidden
 from ttt import challenge
 from models import Profile
 from db import db_init
+from constant import RESTRICTED_ROLES
 
 # LOADING ENV
 load_dotenv()
@@ -100,6 +101,15 @@ async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], 
             (str(interaction.user.mention), str(interaction.user.name)),
             (str(member.mention), str(member.name)) if member else None
         ]
+
+        for restricted_role in RESTRICTED_ROLES:
+            if restricted_role in [role.id for role in member.roles]:
+                await interaction.response.send_message(
+                    content=f'> {interaction.user.mention} You can\'t challenge a bot.',
+                    ephemeral=True
+                )
+                return None
+
         for user in users:
             if user:
                 user_exist = await Profile.get_or_none(discord_id=user[0])

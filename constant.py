@@ -9,3 +9,8 @@ WIN_RESPONSE = [
     "X has been declared the winner of the match against Y.",
     "X has achieved victory over Y in the match."
 ]
+
+RESTRICTED_ROLES = [
+    936926002125352960,
+    1018816353030901802
+]
