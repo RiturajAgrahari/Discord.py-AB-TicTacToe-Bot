@@ -11,12 +11,24 @@ from models import TicTacToeGame, Profile
 matches = {}
 
 
-# Asking for challenge acceptance and refusal to the opponent
+async def tic_tac_toe_match(uid, player1=None, player2=None, finish=False):
+    if finish:
+        print(f'Terminated [{uid}] : {matches[uid]}')
+        # Ending a Match
+        matches.pop(uid)
+    else:
+        # Creating a Match
+        matches[uid] = {
+            "players_discord_id": [player1, player2],
+            "List": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        }
+        print(f'Started [{uid}] : {matches[uid]}')
+
+
+# Asking for challenge acceptance and refusal to opponent / anyone
 async def challenge(main_interaction, member, uid):
-    matches[uid] = {
-        "players_discord_id": [main_interaction.user.mention, member.mention],
-        "List": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    }
+    # Creating a match
+    await tic_tac_toe_match(uid, player1=main_interaction.user.mention, player2=member.mention if member else None)
 
     class MyView(View):
         def __init__(self):
@@ -24,43 +36,78 @@ async def challenge(main_interaction, member, uid):
             self.response = None
             self.challenge_status = False
 
-        # Accepting challenge
+        # Accepting challenge button
         @discord.ui.button(label="Accept", style=discord.ButtonStyle.green, row=0)
         async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not member:
+                user_exist = await Profile.get_or_none(discord_id=interaction.user.mention)
+                if not user_exist:
+                    # Creating user
+                    new_user = Profile(discord_id=interaction.user.mention, discord_name=interaction.user.name)
+                    await new_user.save()
+                await tic_tac_toe_match(uid, main_interaction.user.mention, interaction.user.mention)
             await tictactoe(interaction, main_interaction, uid)
 
-        # Refusing challenge
-        @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, row=0)
-        async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-            # Disabling button and changing Accept button style to gray
-            for i, child in enumerate(self.children):
-                if type(child) == discord.ui.Button:
-                    child.disabled = True
-                    if i == 0:
-                        child.style = discord.ButtonStyle.gray
+        # Refusing challenge button if it is for a specific opponent
+        if member:
+            @discord.ui.button(label="Reject", style=discord.ButtonStyle.red, row=0)
+            async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+                # Disabling button and changing Accept button style to gray
+                for i, child in enumerate(self.children):
+                    if type(child) == discord.ui.Button:
+                        child.disabled = True
+                        if i == 0:
+                            child.style = discord.ButtonStyle.gray
 
-            # Removing match
-            matches.pop(uid)
+                # Removing match
+                await tic_tac_toe_match(uid, finish=True)
 
-            # Editing response
-            await main_interaction.edit_original_response(
-                content=f"{interaction.user.mention} has declined your tic tac toe challenge! {main_interaction.user.mention}",
-                view=self
-            )
+                # Editing response
+                await main_interaction.edit_original_response(
+                    content=f"{interaction.user.mention} has declined your tic tac toe challenge! {main_interaction.user.mention}",
+                    view=self
+                )
 
-            # Sending interaction response as it is necessary to do so
-            await interaction.response.send_message("> Challenge Declined!", ephemeral=True)
+                # Sending interaction response as it is necessary to do so, to the user who rejected the invitation
+                await interaction.response.send_message("> Challenge Declined!", ephemeral=True)
 
         # Interaction check
         async def interaction_check(self, interaction: Interaction, /) -> bool:
-            # Check whether the challenged player is responding or not
-            if interaction.user.mention == member.mention:
+            # If it is a challenge for a specific user
+            if member:
+                # Check whether the challenged player is responding or not
+                if interaction.user.mention == member.mention:
+                    self.challenge_status = True
+                    return True
+                else:
+                    await interaction.response.send_message(
+                        f"> Only the challenged player can accept or decline the invitation",
+                        ephemeral=True
+                    )
+            # If anyone can accept the challenge
+            else:
+                # It must not be the person who challenged
+                if interaction.user.mention == main_interaction.user.mention:
+                    await interaction.response.send_message(
+                        content=f'{interaction.user.mention} You can\'t accept your own challenge.',
+                        ephemeral=True
+                    )
+                    return False
+
+                # Check if the user is already in a match or not
+                user_status, msg = await user_match_status(uid, None, interaction.user.mention)
+                # If user is already in a match
+                if user_status:
+                    # Send a response to the user
+                    await interaction.response.send_message(
+                        content=f'> {interaction.user.mention} You are already in a match or challenged for a match.',
+                        ephemeral=True
+                    )
+                    return False
+
+                # user is eligible to accept the challenge
                 self.challenge_status = True
                 return True
-            await interaction.response.send_message(
-                f"> Only the challenged player can accept or decline the invitation",
-                ephemeral=True
-            )
 
         # When challenge is expired
         async def on_timeout(self) -> None:
@@ -71,11 +118,11 @@ async def challenge(main_interaction, member, uid):
                         child.disabled = True
 
                 # Removing match
-                matches.pop(uid)
+                await tic_tac_toe_match(uid, finish=True)
 
                 # Editing response
                 await main_interaction.edit_original_response(
-                    content=f'> {member.mention} didn\'t responded to the challenge invitation by'
+                    content=f'> {member.mention if member else 'User'} didn\'t responded to the challenge invitation by'
                             f' {main_interaction.user.mention}\n'
                             f'> The challenge is expired!',
                     view=self
@@ -84,36 +131,20 @@ async def challenge(main_interaction, member, uid):
     # Sending challenge invitation
     countdown = await get_countdown(seconds=120)
 
-    # Check for match reports
-    for match in matches.keys():
-        # This is your match.
-        if match == uid:
-            continue
-        else:
-            # [Message] Finish your match before challenging for a new match.
-            if main_interaction.user.mention in matches[match]["players_discord_id"]:
-                matches.pop(uid)
-                await main_interaction.response.send_message(
-                    content=f"> You are already in a game. Please finish it before starting new",
-                    ephemeral=True
-                )
-                break
-
-            # [Message] Other player is already in challenge with someone.
-            elif member.mention in matches[match]["players_discord_id"]:
-                matches.pop(uid)
-                await main_interaction.response.send_message(
-                    content=f"> The opponent is already in a match with someone, Kindly wait for his/her match to end",
-                    ephemeral=True
-                )
-                break
+    user_status, msg = await user_match_status(uid, main_interaction.user.mention, member.mention if member else None)
+    # If anyone of the user is already in a match with someone
+    if user_status:
+        await main_interaction.response.send_message(
+            content=msg,
+            ephemeral=True
+        )
 
     # If there is no match with any one of the user then.
     else:
         view = MyView()
         view.response = await main_interaction.response.send_message(
-            content=f'> {main_interaction.user.mention} challenged {member.mention} in tic tac toe, would you like to'
-                    f' accept the challenge?\n> The invitation will expire {countdown}',
+            content=f'> {main_interaction.user.mention} challenged {member.mention if member else 'you'} in tic tac'
+                    f' toe, would you like to accept the challenge?\n> The invitation will expire {countdown}',
             view=view
         )
 
@@ -191,30 +222,51 @@ async def tictactoe(main_interaction, member, uid):
 
         async def on_timeout(self) -> None:
             if not self.match_complete_status:
+                # Disabling all buttons
                 for i, child in enumerate(self.children):
                     if type(child) == discord.ui.Button:
                         child.disabled = True
 
+                # Checking if the X is idle
                 if self.click_count % 2 == 0:
-                    idle = matches[uid]["players_discord_id"][0]
-                    winner = matches[uid]["players_discord_id"][1]
+                    idle_user = matches[uid]["players_discord_id"][0]
+                    winner_user = matches[uid]["players_discord_id"][1]
 
+                # Checking if the O is idle
                 else:
-                    idle = matches[uid]["players_discord_id"][1]
-                    winner = matches[uid]["players_discord_id"][0]
+                    idle_user = matches[uid]["players_discord_id"][1]
+                    winner_user = matches[uid]["players_discord_id"][0]
 
+                # Creating a response embed on the basis on above condition
                 new_embed = await game_embed(
                     embed=embed,
-                    msg=f"{idle} you didn't respond for a long time\n{winner} you won!",
+                    msg=f"{idle_user} you didn't respond for a long time\n{winner_user} you won!",
                     time=False,
                     result=True
                 )
+
+                for discord_id in matches[uid]["players_discord_id"]:
+                    ttt_stat = await get_ttt_stat(discord_id)
+                    if discord_id == idle_user:
+                        ttt_stat.loss = ttt_stat.loss + 1
+                        await ttt_stat.save()
+                    elif discord_id == winner_user:
+                        ttt_stat.win = ttt_stat.win + 1
+                        await ttt_stat.save()
+                    else:
+                        print("----\n\n\nNot possible where this user came from?\n\n\n----")
+
                 # Editing the result response
-                await main_interaction.edit_original_response(embed=new_embed, view=self)
+                await main_interaction.edit_original_response(
+                    content=f'> {idle_user} did not respond for a long time\n> {winner_user} won',
+                    embed=new_embed,
+                    view=self
+                )
 
                 # Removing match
-                matches.pop(uid)
+                await tic_tac_toe_match(uid, finish=True)
 
+    # Match started Response
     view = YourView()
     view.response = await main_interaction.response.edit_message(
         content=f'> {main_interaction.user.mention} accepted {matches[uid]["players_discord_id"][0]} challenge!',
@@ -225,7 +277,8 @@ async def tictactoe(main_interaction, member, uid):
 
 async def move(self, interaction, button, given, embed, uid):
     try:
-        if self.click_count == 8:  # TIE OR WIN
+        # Last Move --> Ends with either someone wins or tie
+        if self.click_count == 8:
             button.label = '❌'
             button.disabled = True
             self.click_count += 1
@@ -247,14 +300,14 @@ async def move(self, interaction, button, given, embed, uid):
             # Removing match
             matches.pop(uid)
 
-        # When first player moves
+        # When first player moves ( First player is always X )
         elif self.click_count % 2 == 0 and str(interaction.user.mention) == matches[uid]["players_discord_id"][0]:
             button.label = '❌'
             button.disabled = True
             await results(interaction, given, "cross", self, embed, uid)
             self.click_count += 1
 
-        # When second player moves
+        # When second player moves ( Second player is always O )
         elif self.click_count % 2 != 0 and str(interaction.user.mention) == matches[uid]["players_discord_id"][1]:
             button.label = '⭕'
             button.disabled = True
@@ -359,8 +412,34 @@ async def winner(interaction, position, self, embed, pattern, uid):
         else:
             ttt_stat.win = ttt_stat.loss + 1
             await ttt_stat.save()
+    matches.pop(uid)
+
+
+async def user_match_status(uid, user, opponent):
+    """
+    Check whether the users are already in a match or not
+    :param uid: match uuid4
+    :param user: the player who challenged
+    :param opponent: the player who is challenged
+    :return: bool: that they can create a match or not
+    """
+    # Check for match reports
+    for match in matches.keys():
+        # This is your match.
+        if match == uid:
+            continue
+        else:
+            # [Message] Finish your match before challenging for a new match.
+            if user in matches[match]["players_discord_id"]:
+                await tic_tac_toe_match(uid, finish=True)
+                return True, "> You are already in a game. Please finish it before starting new"
+
+            # [Message] Other player is already in match with someone.
+            elif opponent in matches[match]["players_discord_id"]:
+                await tic_tac_toe_match(uid, finish=True)
+                return True, "> The opponent is already in a match with someone, Kindly wait for his/her match to end"
     else:
-        matches.pop(uid)
+        return False, ""
 
 
 async def get_ttt_stat(discord_id):

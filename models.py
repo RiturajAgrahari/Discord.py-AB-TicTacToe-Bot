@@ -13,12 +13,6 @@ class Profile(Model):
         return self.discord_name
 
 
-class BotUsage(Model):
-    id = fields.IntField(primary_key=True)
-    usage = fields.IntField()
-    date = fields.DatetimeField(auto_now_add=True)
-
-
 class TicTacToeGame(Model):
     id = fields.IntField(primary_key=True)
     uid = fields.ForeignKeyField("models.Profile", related_name="tictactoe")
