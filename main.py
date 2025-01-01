@@ -101,14 +101,14 @@ async def play(interaction: discord.Interaction, games: Literal['tic tac toe'], 
             (str(interaction.user.mention), str(interaction.user.name)),
             (str(member.mention), str(member.name)) if member else None
         ]
-
-        for restricted_role in RESTRICTED_ROLES:
-            if restricted_role in [role.id for role in member.roles]:
-                await interaction.response.send_message(
-                    content=f'> {interaction.user.mention} You can\'t challenge a bot.',
-                    ephemeral=True
-                )
-                return None
+        if member:
+            for restricted_role in RESTRICTED_ROLES:
+                if restricted_role in [role.id for role in member.roles]:
+                    await interaction.response.send_message(
+                        content=f'> {interaction.user.mention} You can\'t challenge a bot.',
+                        ephemeral=True
+                    )
+                    return None
 
         for user in users:
             if user:
